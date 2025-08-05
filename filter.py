@@ -1,12 +1,11 @@
 import os
-import time
+import io
+import sys
 import random
 from PIL import Image, ImageTk
-from math import sqrt
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog as fd
-from tkinter.messagebox import showinfo
 
 
 
@@ -120,7 +119,8 @@ def show_image(imagShow):
 
 def save_image(imageSave):
     fileSave = fd.asksaveasfile(defaultextension=".png",filetypes=[(".png",".png"),(".jpg",".jpg"),(".jpeg",".jpeg")])
-    imageSave.save(fileSave.name)
+    if fileSave:
+        imageSave.save(fileSave.name)
 
 def apply_filter(filename):
         global savedButton
@@ -128,10 +128,7 @@ def apply_filter(filename):
         def probably(chance):
             return random.random() < chance
 
-        if eff.get() == 1:
-            punt = 70
-        else:
-            punt = 100
+        punt = 70 if eff.get() == 1 else 100
 
         imag = Image.open(filename)
       #Convert the image te RGB if it is a .gif for example
@@ -140,67 +137,39 @@ def apply_filter(filename):
 
       #lower quality first:
         if comp.get() == 1:
-            imag.save("temp.jpg", quality=100-slider_int.get())
-            imag = Image.open("temp.jpg")
+            buffer = io.BytesIO()
+            imag.save(buffer, format='JPEG', quality=100-slider_int.get())
+            buffer.seek(0)
+            imag = Image.open(buffer)
 
         width,height = imag.size
 
       #This is where most of the filter is applied. It checks for each pixel and depending on its
       #brightness level, it assigns one of the characteristic colours of the game.
-        if milk.get() == 1:
-            for x in range(width):
-                for y in range(height):
-                    pixelRGB = imag.getpixel((x,y))
-                    R,G,B = pixelRGB
-                    brightness = sum([R,G,B])/3
-                    if brightness <= 25:
-                        imag.putpixel((x,y),(0,0,0,255))
-                    if brightness > 25 and brightness <= 70:
-                        if probably(punt/100):
-                            imag.putpixel((x,y),(0,0,0,255))
-                        else:
-                            imag.putpixel((x,y),(102,0,31,255))
-                    if brightness > 70 and brightness < 120:
-                        if probably(punt/100):
-                            imag.putpixel((x,y),(102,0,31,255))
-                        else:
-                            imag.putpixel((x,y),(0,0,0,255))
-                    if brightness >= 120 and brightness < 200:
-                            imag.putpixel((x,y),(102,0,31,255))
-                    if brightness >= 200 and brightness < 230:
-                        if probably(punt/100):
-                            imag.putpixel((x,y),(137,0,146,255))
-                        else:
-                            imag.putpixel((x,y),(102,0,31,255))
-                    if brightness >= 230:
-                        imag.putpixel((x,y),(137,0,146,255))
-        else:
-            for x in range(width):
-                for y in range(height):
-                    pixelRGB = imag.getpixel((x,y))
-                    R,G,B = pixelRGB
-                    brightness = sum([R,G,B])/3
-                    if brightness <= 25:
-                        imag.putpixel((x,y),(0,0,0,255))
-                    if brightness > 25 and brightness <= 70:
-                        if probably(punt/100):
-                            imag.putpixel((x,y),(0,0,0,255))
-                        else:
-                            imag.putpixel((x,y),(92,36,60,255))
-                    if brightness > 70 and brightness < 90:
-                        if probably(punt/100):
-                            imag.putpixel((x,y),(92,36,60,255))
-                        else:
-                            imag.putpixel((x,y),(0,0,0,255))
-                    if brightness >= 90 and brightness < 150:
-                            imag.putpixel((x,y),(92,36,60,255))
-                    if brightness >= 150 and brightness < 200:
-                        if probably(punt/100):
-                            imag.putpixel((x,y),(203,43,43,255))
-                        else:
-                            imag.putpixel((x,y),(92,36,60,255))
-                    if brightness >= 200:
-                        imag.putpixel((x,y),(203,43,43,255))
+        color_map = {
+            1: [(0, 0, 0, 255), (102, 0, 31, 255), (137, 0, 146, 255)],
+            2: [(0, 0, 0, 255), (92, 36, 60, 255), (203, 43, 43, 255)]
+        }
+        colors = color_map[milk.get()]
+
+        for x in range(width):
+            for y in range(height):
+                pixelRGB = imag.getpixel((x, y))
+                R, G, B = pixelRGB
+                brightness = sum([R, G, B]) / 3
+
+                if brightness <= 25:
+                    imag.putpixel((x, y), (0, 0, 0, 255))
+                elif brightness <= 70:
+                    imag.putpixel((x, y), (0, 0, 0, 255) if probably(punt/100) else colors[1])
+                elif brightness < (120 if milk.get() == 1 else 90):
+                    imag.putpixel((x, y), colors[1] if probably(punt/100) else (0, 0, 0, 255))
+                elif brightness < (200 if milk.get() == 1 else 150):
+                    imag.putpixel((x, y), colors[1])
+                elif brightness < 230:
+                    imag.putpixel((x, y), colors[2] if probably(punt/100) else colors[1])
+                else:
+                    imag.putpixel((x, y), colors[2])
 
         imagResize = imag.resize((int(widthWindow/2.2), int(heightWindow/2.2)), Image.Resampling.LANCZOS)
         imgFilter = ImageTk.PhotoImage(imagResize)
@@ -247,32 +216,33 @@ def select_file():
 
     filename = fd.askopenfilename(title='Open a file',initialdir='.',filetypes=filetypes)
 
-    img = Image.open(filename)
-    resized_img = img.resize((int(widthWindow/2.2), int(heightWindow/2.2)), Image.Resampling.LANCZOS)
-    imgTk = ImageTk.PhotoImage(resized_img)
-    display.config(image=imgTk)
-    display.image = imgTk
-    window.update_idletasks()
-    my_canvas.configure(scrollregion=my_canvas.bbox("all"))
-    
-    if(button_created == False):     
-        compression = tk.Checkbutton(frame_3, text='Check this box if you want compression on the image or not.', variable = comp,onvalue=1,offvalue=0,command=slider_display)
-        compression.pack()
-        effect = tk.Checkbutton(frame_3, text='Check this box if you want the pointillism effect on the image or not.', variable = eff,onvalue=1,offvalue=0)
-        effect.pack()
-        R1 = tk.Radiobutton(frame_3, text="Milk1 effect", variable=milk, value=1)
-        R1.pack()
-        R1.select()
-        R2 = tk.Radiobutton(frame_3, text="Milk2 effect", variable=milk, value=2)
-        R2.pack()
-
-        apply_button = ttk.Button(frame_3,text='Apply filter',command=lambda: apply_filter(filename))
-        apply_button.pack(expand=True)
+    if filename:
+        img = Image.open(filename)
+        resized_img = img.resize((int(widthWindow/2.2), int(heightWindow/2.2)), Image.Resampling.LANCZOS)
+        imgTk = ImageTk.PhotoImage(resized_img)
+        display.config(image=imgTk)
+        display.image = imgTk
         window.update_idletasks()
         my_canvas.configure(scrollregion=my_canvas.bbox("all"))
-        button_created = True
-    else:
-        apply_button.config(command=lambda: apply_filter(filename))
+        
+        if(button_created == False):     
+            compression = tk.Checkbutton(frame_3, text='Check this box if you want compression on the image or not.', variable = comp,onvalue=1,offvalue=0,command=slider_display)
+            compression.pack()
+            effect = tk.Checkbutton(frame_3, text='Check this box if you want the pointillism effect on the image or not.', variable = eff,onvalue=1,offvalue=0)
+            effect.pack()
+            R1 = tk.Radiobutton(frame_3, text="Milk1 effect", variable=milk, value=1)
+            R1.pack()
+            R1.select()
+            R2 = tk.Radiobutton(frame_3, text="Milk2 effect", variable=milk, value=2)
+            R2.pack()
+
+            apply_button = ttk.Button(frame_3,text='Apply filter',command=lambda: apply_filter(filename))
+            apply_button.pack(expand=True)
+            window.update_idletasks()
+            my_canvas.configure(scrollregion=my_canvas.bbox("all"))
+            button_created = True
+        else:
+            apply_button.config(command=lambda: apply_filter(filename))
 
 
 open_button = ttk.Button(frame_1,text='Open a File',command=select_file)
@@ -282,8 +252,8 @@ open_button.pack(expand=True)
 button_created = False
 savedButton = False
 
-apply_button = ttk.Button(frame_3,text='Apply test',command=lambda: apply_filter(filename))
-save_button = ttk.Button(frame_3,text='Save image',command=lambda: save_image(imag))
+# apply_button = ttk.Button(frame_3,text='Apply test',command=lambda: apply_filter(filename))
+# save_button = ttk.Button(frame_3,text='Save image',command=lambda: save_image(imag))
 
 slider_label = tk.Label(frame_3,text="Level of compression (from 0 best quality to 100 worst quality): ")
 slider_label.pack()
