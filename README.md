@@ -44,18 +44,20 @@ Important notes:
 4. Choose if you want to give the "pointillism" effect. Don't know how will it look? Give it a try!
 5. Choose between applying the effect from the first or the second game.
 7. Click on "Apply filter". Don't worry if the program freezes for a moment, it's normal since it is converting the image, just wait a few seconds.
-8. A new window will open showcasing the new image, and a button that will open the new image in your default image viewer. Don't worry if after closing the image viewer the program freezes for a bit, it's normal, just wait.
+8. A new window will open showcasing the new image, and a button that will open the new image in your default image viewer.
 9. In the main window, you can choose to save the image by clicking on the "Save image" button.
 10. You can repeat this process until you are satisfied.
 
 ## Notes
 
-- Don't worry if the program freezes during the conversion, after it finishes it will come back to normal.
 - Don't worry if the image looks stretched in the program, when saved it will look normal (you can check viewing it in your default image viewer). It is a current problem where it doesn't take into account the dimension when inserting it into the program, but that problem doesn't happen when saving it.
 - The program will take longer as the image size is bigger.
 - Please contact me in lucamuino@gmail.com if you find any bugs, issues, or you want a new feature!
 - Expect the program to be kind of simple. I put up a GUI quickly to remove the need to do it in console.
 - You are free to do whatever you want with this code. If you want to help adding features, making it prettier, or just refactoring the code, I'll be happy to review them.
+
+## Extra note
+Big thanks to [@R00tKited](https://github.com/R00tKited) for the improvements and refactoring to the code!
 
 ## Final comments
 
