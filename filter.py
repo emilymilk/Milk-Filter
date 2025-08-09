@@ -1,3 +1,4 @@
+import threading
 import os
 import io
 import sys
@@ -123,69 +124,111 @@ def save_image(imageSave):
         imageSave.save(fileSave.name)
 
 def apply_filter(filename):
-        global savedButton
-        global save_button
-        def probably(chance):
-            return random.random() < chance
+    global progress_bar
 
+    # Create progress bar if not already made
+    if not hasattr(apply_filter, "progress_bar"):
+        progress_bar = ttk.Progressbar(frame_3, orient="horizontal", length=300, mode="determinate")
+        apply_filter.progress_bar = progress_bar
+    else:
+        progress_bar = apply_filter.progress_bar
+
+    progress_bar.pack(pady=5)
+    progress_bar["value"] = 0
+    progress_bar["maximum"] = 100
+
+    # Disable Apply button while processing
+    apply_button.config(state="disabled")
+    applied.config(text="Processing...", image="", compound="center")
+
+    def probably(chance):
+        return random.random() < chance
+
+    def process_image(update_progress):
         punt = 70 if eff.get() == 1 else 100
+        milk_type = milk.get()
 
         imag = Image.open(filename)
-      #Convert the image te RGB if it is a .gif for example
-        imag = imag.convert ('RGB')
-      #Get RGB
+        if imag.mode != 'RGB':
+            imag = imag.convert('RGB')
 
-      #lower quality first:
         if comp.get() == 1:
             buffer = io.BytesIO()
-            imag.save(buffer, format='JPEG', quality=100-slider_int.get())
+            quality = max(1, 100 - slider_int.get())
+            imag.save(buffer, format='JPEG', quality=quality)
             buffer.seek(0)
-            imag = Image.open(buffer)
+            imag = Image.open(buffer).convert('RGB')
 
-        width,height = imag.size
+        width, height = imag.size
 
-      #This is where most of the filter is applied. It checks for each pixel and depending on its
-      #brightness level, it assigns one of the characteristic colours of the game.
         color_map = {
-            1: [(0, 0, 0, 255), (102, 0, 31, 255), (137, 0, 146, 255)],
-            2: [(0, 0, 0, 255), (92, 36, 60, 255), (203, 43, 43, 255)]
+            1: [(0, 0, 0), (102, 0, 31), (137, 0, 146)],
+            2: [(0, 0, 0), (92, 36, 60), (203, 43, 43)]
         }
-        colors = color_map[milk.get()]
+        colors = color_map[milk_type]
+        pixels = imag.load()
 
-        for x in range(width):
-            for y in range(height):
-                pixelRGB = imag.getpixel((x, y))
-                R, G, B = pixelRGB
-                brightness = sum([R, G, B]) / 3
+        thresh_mid1 = 120 if milk_type == 1 else 90
+        thresh_mid2 = 200 if milk_type == 1 else 150
+
+        for y in range(height):
+            for x in range(width):
+                R, G, B = pixels[x, y]
+                brightness = (R + G + B) / 3
 
                 if brightness <= 25:
-                    imag.putpixel((x, y), (0, 0, 0, 255))
+                    pixels[x, y] = colors[0]
                 elif brightness <= 70:
-                    imag.putpixel((x, y), (0, 0, 0, 255) if probably(punt/100) else colors[1])
-                elif brightness < (120 if milk.get() == 1 else 90):
-                    imag.putpixel((x, y), colors[1] if probably(punt/100) else (0, 0, 0, 255))
-                elif brightness < (200 if milk.get() == 1 else 150):
-                    imag.putpixel((x, y), colors[1])
+                    pixels[x, y] = colors[0] if probably(punt / 100) else colors[1]
+                elif brightness < thresh_mid1:
+                    pixels[x, y] = colors[1] if probably(punt / 100) else colors[0]
+                elif brightness < thresh_mid2:
+                    pixels[x, y] = colors[1]
                 elif brightness < 230:
-                    imag.putpixel((x, y), colors[2] if probably(punt/100) else colors[1])
+                    pixels[x, y] = colors[2] if probably(punt / 100) else colors[1]
                 else:
-                    imag.putpixel((x, y), colors[2])
+                    pixels[x, y] = colors[2]
 
-        imagResize = imag.resize((int(widthWindow/2.2), int(heightWindow/2.2)), Image.Resampling.LANCZOS)
+            # Update progress after each row
+            if y % max(1, height // 100) == 0:
+                update_progress((y / height) * 100)
+
+        update_progress(100)  # Ensure it ends at 100%
+        return imag
+
+    def on_done(imag):
+        progress_bar.pack_forget()
+
+        imagResize = imag.resize((int(widthWindow / 2.2), int(heightWindow / 2.2)), Image.Resampling.LANCZOS)
         imgFilter = ImageTk.PhotoImage(imagResize)
-        applied.config(image=imgFilter)
+        applied.config(image=imgFilter, text="", compound=None)
         applied.image = imgFilter
+
         window.update_idletasks()
         my_canvas.configure(scrollregion=my_canvas.bbox("all"))
-        if savedButton == False:
-            save_button = ttk.Button(frame_3,text='Save image',command=lambda: save_image(imag))
-            save_button.pack(expand=True,pady=5)
+
+        global savedButton, save_button
+        if savedButton is False:
+            save_button = ttk.Button(frame_3, text='Save image', command=lambda: save_image(imag))
+            save_button.pack(expand=True, pady=5)
             savedButton = True
             window.update_idletasks()
             my_canvas.configure(scrollregion=my_canvas.bbox("all"))
         else:
             save_button.config(command=lambda: save_image(imag))
+
         show_image(imag)
+        apply_button.config(state="normal")
+
+    def worker():
+        def update_progress(val):
+            window.after(0, lambda: progress_bar.config(value=val))
+
+        imag = process_image(update_progress)
+        window.after(0, lambda: on_done(imag))
+
+    threading.Thread(target=worker, daemon=True).start()
+
 
 def on_value_change(value):
     slider_number_label.configure(text=str(int(float(value))))
